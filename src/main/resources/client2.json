@@ -1,0 +1,57 @@
+import java.time.DayOfWeek;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+// ...
+
+public class AppointmentService {
+// Metoda zwracająca dostępne terminy wizyt dla danego lekarza w określonym przedziale czasowym
+public List<LocalDateTime> getAvailableAppointments(Long doctorId, LocalDateTime startTime, LocalDateTime endTime) {
+List<LocalDateTime> availableAppointments = new ArrayList<>();
+
+// Sprawdzenie, czy wybrany lekarz pracuje w weekendy
+Doctor doctor = doctorRepository.findById(doctorId);
+boolean isWeekendEnabled = doctor.isWeekendEnabled();
+
+// Pobranie wszystkich wizyt dla danego lekarza w podanym przedziale czasowym z bazy danych
+List<Appointment> appointments = appointmentRepository.findByDoctorIdAndTimeStartBetween(doctorId, startTime, endTime);
+
+// Iteracja przez wszystkie godziny w podanym przedziale czasowym
+LocalDateTime currentAppointmentTime = startTime;
+while (currentAppointmentTime.isBefore(endTime)) {
+// Sprawdzenie, czy dana godzina jest w godzinach pracy lekarza
+boolean isWorkingHours = currentAppointmentTime.getHour() >= 8 && currentAppointmentTime.getHour() < 18;
+
+// Sprawdzenie, czy lekarz pracuje w weekendy (jeśli tak, to wszystkie godziny są uważane za dostępne)
+boolean isWeekend = currentAppointmentTime.getDayOfWeek() == DayOfWeek.SATURDAY || currentAppointmentTime.getDayOfWeek() == DayOfWeek.SUNDAY;
+
+// Sprawdzenie, czy dana godzina jest dostępna (nie ma już wizyt zaplanowanych) i mieści się w godzinach pracy lekarza
+boolean isAppointmentAvailable = true;
+if (isWorkingHours && (isWeekendEnabled || !isWeekend)) {
+for (Appointment appointment : appointments) {
+LocalDateTime appointmentStart = appointment.getTimeStart();
+LocalDateTime appointmentEnd = appointment.getTimeEnd();
+
+// Sprawdzenie, czy dana wizyta koliduje z aktualnie sprawdzaną godziną
+if (currentAppointmentTime.isAfter(appointmentStart) && currentAppointmentTime.plusHours(1).isBefore(appointmentEnd)) {
+isAppointmentAvailable = false;
+break;
+}
+}
+} else {
+isAppointmentAvailable = false;
+}
+
+// Jeśli dana godzina jest dostępna, dodaj ją do listy dostępnych terminów
+if (isAppointmentAvailable) {
+availableAppointments.add(currentAppointmentTime);
+}
+
+// Przejście do następnej godziny
+currentAppointmentTime = currentAppointmentTime.plusHours(1);
+}
+
+return availableAppointments;
+}
+}
